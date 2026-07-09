@@ -24,6 +24,7 @@ await connectDB();
 
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173'
+  
 }));
 
 // Raised from the 100kb default so base64-encoded product images
