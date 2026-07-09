@@ -131,6 +131,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+console.log("GMAIL_USER:", process.env.GMAIL_USER);
+console.log("APP PASSWORD EXISTS:", !!process.env.GMAIL_APP_PASSWORD);
+console.log("CLIENT_URL:", process.env.CLIENT_URL);
+
 // Verify Gmail
 transporter.verify((error) => {
 
