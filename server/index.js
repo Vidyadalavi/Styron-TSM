@@ -134,11 +134,13 @@ console.log("BREVO_USER:", process.env.BREVO_USER);
 console.log("BREVO KEY EXISTS:", !!process.env.BREVO_SMTP_KEY);
 console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
-transporter.verify((error) => {
-  if (error) {
-    console.error("❌ Brevo Error:", error);
+transporter.verify((err, success) => {
+  console.log("VERIFY RESULT:", success);
+
+  if (err) {
+    console.error("SMTP VERIFY ERROR:", err);
   } else {
-    console.log("✅ Brevo SMTP is ready.");
+    console.log("SMTP Connected");
   }
 });
 // ----------------------------------------------------
