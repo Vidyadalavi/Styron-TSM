@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import 'dotenv/config';
-import nodemailer from 'nodemailer';
 import jwt from 'jsonwebtoken';
 import { connectDB } from './db.js';
 import productRoutes from './routes/products.js';
@@ -14,6 +13,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import messageRoutes from './routes/messages.js';
 import settingsRoutes from './routes/settings.js';
 import steelPriceRoutes from './routes/steelPrice.js';
+import { sendOtpEmail } from './utils/brevoMailer.js';
 
 
 const app = express();
@@ -115,39 +115,11 @@ app.get('/health', (req, res) => {
 const otpStore = new Map();
 
 // ----------------------------------------------------
-// Nodemailer
+// Email (Brevo HTTP API — see utils/brevoMailer.js)
 // ----------------------------------------------------
-// ----------------------------------------------------
-// Nodemailer (Brevo)
-// ----------------------------------------------------
-const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 587,
-  secure: false,
-  family: 4,
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
-  auth: {
-    user: process.env.BREVO_USER,
-    pass: process.env.BREVO_SMTP_KEY,
-  },
-});
-
-console.log("BREVO_USER:", process.env.BREVO_USER);
-console.log("BREVO KEY EXISTS:", !!process.env.BREVO_SMTP_KEY);
+console.log("BREVO_API_KEY EXISTS:", !!process.env.BREVO_API_KEY);
 console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
-transporter.verify((err, success) => {
-  console.log("VERIFY RESULT:", success);
-
-  if (err) {
-    console.error("SMTP VERIFY ERROR:", err);
-  } else {
-    console.log("SMTP Connected");
-  }
-
-});
 // ----------------------------------------------------
 // Send OTP
 // ----------------------------------------------------
@@ -184,48 +156,27 @@ app.post('/api/auth/send-otp', async (req, res) => {
 
   try {
 
-    await transporter.sendMail({
-
-     from: '"Styron TSM" <vidyadalavi4475@gmail.com>',
-
-      to: normalizedEmail,
-
-      subject: 'Styron TSM Login OTP',
-
-      html: `
-      <div style="font-family:Arial;padding:30px">
-      <h2>Styron TSM</h2>
-
-      <p>Your login OTP is:</p>
-
-      <h1>${code}</h1>
-
-      <p>Valid for 5 minutes.</p>
-
-      </div>
-      `
-
-    });
+    await sendOtpEmail(normalizedEmail, code);
 
     res.json({
       success: true,
       message: 'OTP Sent'
     });
 
-  }    catch (err) {
+  } catch (err) {
 
     console.error("Brevo Error:", err);
+
+    otpStore.delete(normalizedEmail);
 
     return res.status(500).json({
       success: false,
       message: err.message,
-      code: err.code,
-      response: err.response,
     });
 
-  };
+  }
 
-});// <-- THIS LINE IS MISSING
+});
 // ----------------------------------------------------
 // Verify OTP
 // ----------------------------------------------------
