@@ -124,6 +124,10 @@ const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
   port: 587,
   secure: false,
+  family: 4,
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   auth: {
     user: process.env.BREVO_USER,
     pass: process.env.BREVO_SMTP_KEY,
@@ -134,7 +138,7 @@ console.log("BREVO_USER:", process.env.BREVO_USER);
 console.log("BREVO KEY EXISTS:", !!process.env.BREVO_SMTP_KEY);
 console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
-transporter.verify((err, success) => {
+//transporter.verify((err, success) => {
   console.log("VERIFY RESULT:", success);
 
   if (err) {
@@ -142,7 +146,7 @@ transporter.verify((err, success) => {
   } else {
     console.log("SMTP Connected");
   }
-});
+//});
 // ----------------------------------------------------
 // Send OTP
 // ----------------------------------------------------
