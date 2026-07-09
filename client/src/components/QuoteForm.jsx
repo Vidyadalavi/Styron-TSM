@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_URL } from '../config';
 
 export default function QuoteForm() {
   const [submitted, setSubmitted] = useState(false);
@@ -16,7 +17,7 @@ export default function QuoteForm() {
     setError('');
     setSubmitting(true);
     try {
-      const res = await fetch('/api/quotations', {
+      const res = await fetch(`${API_URL}/api/quotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

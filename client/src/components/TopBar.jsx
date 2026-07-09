@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { API_URL } from '../config';
 
 export default function TopBar() {
   const [priceInfo, setPriceInfo] = useState(null);
 
   useEffect(() => {
-    fetch('/api/steel-price')
+    fetch(`${API_URL}/api/steel-price`)
       .then(res => res.ok ? res.json() : null)
       .then(data => setPriceInfo(data))
       .catch(() => {});

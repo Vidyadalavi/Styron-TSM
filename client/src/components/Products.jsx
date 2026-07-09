@@ -1,6 +1,7 @@
 import { useCart } from '../CartContext';
 import { useState, useEffect } from 'react';
 import ProductImage from './ProductImage';
+import { API_URL } from '../config';
 
 export default function Products() {
   const { addToCart, setCartOpen } = useCart();
@@ -10,7 +11,7 @@ export default function Products() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('/api/products')
+    fetch(`${API_URL}/api/products`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load products');
         return res.json();

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_URL } from '../config';
 
 const STEPS = ['Order Confirmed', 'In Production', 'Dispatched', 'Delivered'];
 
@@ -23,7 +24,7 @@ export default function TrackPage() {
     setOrder(null);
 
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+      const res = await fetch(`${API_URL}/api/orders/${encodeURIComponent(orderId)}`);
       if (res.status === 404) {
         setOrder(null);
         return;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_URL } from '../config';
 
 const GST_RATE = 0.18;
 const DELIVERY = 1500;
@@ -23,7 +24,7 @@ export default function CheckoutModal({ open, onClose, items, total, clearCart }
   const saveOrder = async (paymentId) => {
     setSaveError('');
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

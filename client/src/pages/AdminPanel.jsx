@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_URL } from '../config';
 
 // ─── DESIGN TOKENS (matching Styron TSM site) ───────────────────────────────
 const CSS = `
@@ -455,7 +456,7 @@ function Dashboard() {
     const token = localStorage.getItem('admin_token');
     setLoading(true);
     setError('');
-    fetch('/api/dashboard/summary', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/dashboard/summary`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => {
         if (!res.ok) throw new Error('Failed to load dashboard');
         return res.json();
@@ -584,7 +585,7 @@ function Orders() {
   const loadOrders = () => {
     setLoading(true);
     setError('');
-    fetch('/api/orders', {
+    fetch(`${API_URL}/api/orders`, {
       headers: { Authorization: `Bearer ${token()}` },
     })
       .then(res => {
@@ -601,7 +602,7 @@ function Orders() {
   const updateStatus = async (orderId, status) => {
     setOrders(os => os.map(o => o.orderId === orderId ? { ...o, status } : o));
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
+      const res = await fetch(`${API_URL}/api/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -758,7 +759,7 @@ function ProductsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this product? This cannot be undone.')) return;
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await fetch(`${API_URL}/api/products/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token()}` },
       });
@@ -775,7 +776,7 @@ function ProductsPage() {
   const loadProducts = () => {
     setLoading(true);
     // ?all=true so the admin also sees inactive/disabled products
-    fetch('/api/products?all=true')
+    fetch(`${API_URL}/api/products?all=true`)
       .then(res => res.json())
       .then(data => {
         const withId = data.map(p => ({ ...p, id: p.slug }));
@@ -800,7 +801,7 @@ function ProductsPage() {
 
     try {
       await Promise.all(changed.map(p =>
-        fetch(`/api/products/${p.id}`, {
+        fetch(`${API_URL}/api/products/${p.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -917,7 +918,7 @@ function AddProductModal({ onClose, onCreated }) {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/products', {
+      const res = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1024,7 +1025,7 @@ function QuotesPage() {
   const loadQuotes = () => {
     setLoading(true);
     setError('');
-    fetch('/api/quotations', {
+    fetch(`${API_URL}/api/quotations`, {
       headers: { Authorization: `Bearer ${token()}` },
     })
       .then(res => {
@@ -1041,7 +1042,7 @@ function QuotesPage() {
   const updateStatus = async (quoteNumber, status) => {
     setQuotes(qs => qs.map(q => q.quoteNumber === quoteNumber ? { ...q, status } : q));
     try {
-      const res = await fetch(`/api/quotations/${quoteNumber}/status`, {
+      const res = await fetch(`${API_URL}/api/quotations/${quoteNumber}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1059,7 +1060,7 @@ function QuotesPage() {
     if (!window.confirm('Discard this quote request? This cannot be undone.')) return;
     setQuotes(qs => qs.filter(q => q.quoteNumber !== quoteNumber));
     try {
-      const res = await fetch(`/api/quotations/${quoteNumber}`, {
+      const res = await fetch(`${API_URL}/api/quotations/${quoteNumber}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token()}` },
       });
@@ -1245,7 +1246,7 @@ function MessagesPage() {
   const loadMessages = () => {
     setLoading(true);
     setError('');
-    fetch('/api/messages', { headers: { Authorization: `Bearer ${token()}` } })
+    fetch(`${API_URL}/api/messages`, { headers: { Authorization: `Bearer ${token()}` } })
       .then(res => {
         if (!res.ok) throw new Error('Failed to load messages');
         return res.json();
@@ -1261,7 +1262,7 @@ function MessagesPage() {
     setSelected(m);
     setReplyText(m.reply || '');
     if (!m.read) {
-      fetch(`/api/messages/${m._id}/read`, {
+      fetch(`${API_URL}/api/messages/${m._id}/read`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token()}` },
       })
@@ -1279,7 +1280,7 @@ function MessagesPage() {
     if (!selected || !replyText.trim()) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/messages/${selected._id}/reply`, {
+      const res = await fetch(`${API_URL}/api/messages/${selected._id}/reply`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ reply: replyText }),
@@ -1379,7 +1380,7 @@ function CustomersPage() {
   useEffect(() => {
     setLoading(true);
     setError('');
-    fetch('/api/customers', {
+    fetch(`${API_URL}/api/customers`, {
       headers: { Authorization: `Bearer ${token()}` },
     })
       .then(res => {
@@ -1457,7 +1458,7 @@ function CustomerDetailModal({ customer: c, onClose }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/customers/${encodeURIComponent(c.email)}/orders`, {
+    fetch(`${API_URL}/api/customers/${encodeURIComponent(c.email)}/orders`, {
       headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
     })
       .then(res => res.ok ? res.json() : [])
@@ -1537,7 +1538,7 @@ function SettingsPage() {
   useEffect(() => {
     setLoadingPrice(true);
     setPriceError('');
-    fetch('/api/steel-price')
+    fetch(`${API_URL}/api/steel-price`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load steel price');
         return res.json();
@@ -1561,7 +1562,7 @@ function SettingsPage() {
     setPriceError('');
     setSavingPrice(true);
     try {
-      const res = await fetch('/api/steel-price', {
+      const res = await fetch(`${API_URL}/api/steel-price`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({
@@ -1583,7 +1584,7 @@ function SettingsPage() {
   useEffect(() => {
     setLoadingCompany(true);
     setCompanyError('');
-    fetch('/api/settings/company', { headers: { Authorization: `Bearer ${token()}` } })
+    fetch(`${API_URL}/api/settings/company`, { headers: { Authorization: `Bearer ${token()}` } })
       .then(res => {
         if (!res.ok) throw new Error('Failed to load company settings');
         return res.json();
@@ -1604,7 +1605,7 @@ function SettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings/company', {
+      const res = await fetch(`${API_URL}/api/settings/company`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify(company),
@@ -1734,11 +1735,11 @@ export default function AdminPanel() {
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (!token) return;
-    fetch('/api/quotations', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/quotations`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.ok ? res.json() : [])
       .then(data => setNewQuoteCount(data.filter(q => q.status === 'New').length))
       .catch(() => {});
-    fetch('/api/messages', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/messages`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.ok ? res.json() : [])
       .then(data => setUnreadMsgCount(data.filter(m => !m.read).length))
       .catch(() => {});

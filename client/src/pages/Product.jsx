@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { CATEGORIES } from '../data/products';
 import { useCart } from '../CartContext';
 import ProductImage from '../components/ProductImage';
+import { API_URL } from '../config';
 
 const SORTS = [
   { value: 'default', label: 'Featured' },
@@ -22,7 +23,7 @@ export default function ProductPage() {
   const [sort, setSort] = useState('default');
 
   useEffect(() => {
-    fetch('/api/products')
+    fetch(`${API_URL}/api/products`)
       .then(res => res.json())
       .then(data => {
         setProducts(data.map(p => ({ ...p, id: p.slug })));

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { products, GST_RATE } from '../data/products';
 import { useAuth } from '../AuthContext';
+import { API_URL } from '../config';
 
 export default function QuotationPage() {
   const { user } = useAuth();
@@ -57,7 +58,7 @@ export default function QuotationPage() {
         return { productId: it.productId, title: p.title, qty: it.qty, price: p.price, amount: p.price * it.qty };
       });
 
-      const res = await fetch('/api/quotations', {
+      const res = await fetch(`${API_URL}/api/quotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, lineItems: payloadLineItems, ...totals }),

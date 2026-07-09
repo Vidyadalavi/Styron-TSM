@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useCart } from '../CartContext';
+import { API_URL } from '../config';
 
 export default function LoginPage() {
   const { login }              = useAuth();
@@ -23,7 +24,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res  = await fetch('/api/auth/send-otp', {
+      const res  = await fetch(`${API_URL}/api/auth/send-otp`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email }),
@@ -44,7 +45,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res  = await fetch('/api/auth/verify-otp', {
+      const res  = await fetch(`${API_URL}/api/auth/verify-otp`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email, code }),
