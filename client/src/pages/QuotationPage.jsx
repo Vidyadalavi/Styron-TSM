@@ -2,8 +2,6 @@ import { useState, useMemo } from 'react';
 import { products, GST_RATE } from '../data/products';
 import { useAuth } from '../AuthContext';
 
-let quoteCounter = 1024;
-
 export default function QuotationPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState('new'); // 'new' | 'preview'
@@ -20,6 +18,8 @@ export default function QuotationPage() {
   ]);
   const [history, setHistory] = useState([]);
   const [activeQuote, setActiveQuote] = useState(null);
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -42,18 +42,66 @@ export default function QuotationPage() {
     return { subtotal, gst, total: subtotal + gst };
   }, [lineItems]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
+    // Must run first and synchronously, so a real browser form submit
+    // (full page reload / "blank page") never happens even if something
+    // below throws.
     e.preventDefault();
-    const quote = {
-      id: `QTN-${quoteCounter++}`,
-      date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      ...form,
-      lineItems: lineItems.map(it => ({ ...it, product: products.find(p => p.id === it.productId) })),
-      ...totals,
-    };
-    setHistory(h => [quote, ...h]);
-    setActiveQuote(quote);
-    setTab('preview');
+    setSubmitError('');
+    setSubmitting(true);
+
+    try {
+      const payloadLineItems = lineItems.map(it => {
+        const p = products.find(p => p.id === it.productId);
+        if (!p) throw new Error('One of the selected products is no longer available. Please re-select it.');
+        return { productId: it.productId, title: p.title, qty: it.qty, price: p.price, amount: p.price * it.qty };
+      });
+
+      const res = await fetch('/api/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, lineItems: payloadLineItems, ...totals }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to submit quotation');
+      }
+
+      const saved = await res.json();
+
+      // The backend returns a flat shape: { quoteNumber, createdAt,
+      // lineItems: [{ productId, title, price, qty, amount }], ... }.
+      // Reshape it into what the preview UI below expects:
+      // { id, date, lineItems: [{ id, qty, product: { title, price } }] }.
+      const quote = {
+        id: saved.quoteNumber,
+        date: new Date(saved.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        fullName: saved.fullName,
+        company: saved.company,
+        email: saved.email,
+        phone: saved.phone,
+        gstin: saved.gstin,
+        address: saved.address,
+        lineItems: saved.lineItems.map((it, idx) => ({
+          id: idx,
+          qty: it.qty,
+          product: { title: it.title, price: it.price },
+        })),
+        subtotal: saved.subtotal,
+        gst: saved.gst,
+        total: saved.total,
+      };
+
+      setHistory(h => [quote, ...h]);
+      setActiveQuote(quote);
+      setTab('preview');
+    } catch (err) {
+      console.error(err);
+      setSubmitError(err.message || 'Could not submit quotation. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -133,7 +181,10 @@ export default function QuotationPage() {
             <div className="quote-grand-total"><span>Total</span><span>₹{totals.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></div>
           </div>
 
-          <button type="submit" className="btn-form">Generate Quotation</button>
+          {submitError && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{submitError}</p>}
+          <button type="submit" className="btn-form" disabled={submitting}>
+            {submitting ? 'Submitting...' : 'Generate Quotation'}
+          </button>
         </form>
       )}
 

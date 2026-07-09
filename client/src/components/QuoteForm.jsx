@@ -2,13 +2,48 @@ import { useState } from 'react';
 
 export default function QuoteForm() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState({ name: '', phone: '', email: '', company: '', city: '', qty: '', type: '', message: '' });
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
+  const handleSubmit = async () => {
+    if (!form.name || !form.phone) {
+      setError('Full name and phone are required.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: form.name,
+          phone: form.phone,
+          email: form.email,
+          company: form.company,
+          city: form.city,
+          projectType: form.type,
+          // qty is a free-text field here (e.g. "500 kg"), not part of lineItems,
+          // so we fold it into the message so it isn't lost.
+          message: form.qty ? `Quantity: ${form.qty}. ${form.message}`.trim() : form.message,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to send inquiry');
+      }
+      setSubmitted(true);
+      setForm({ name: '', phone: '', email: '', company: '', city: '', qty: '', type: '', message: '' });
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -81,13 +116,18 @@ export default function QuoteForm() {
             <label>Message</label>
             <textarea name="message" placeholder="Describe your requirements, stirrup types, sizes..." value={form.message} onChange={handleChange} />
           </div>
+          {error && <p style={{ color: '#dc2626', marginBottom: '0.75rem' }}>{error}</p>}
           <button
             className="btn-form"
             onClick={handleSubmit}
-            disabled={submitted}
+            disabled={submitted || submitting}
             style={submitted ? { background: '#16a34a' } : {}}
           >
-            {submitted ? "✅ Inquiry Sent! We'll contact you within 24 hours." : 'Send Inquiry →'}
+            {submitted
+              ? "✅ Inquiry Sent! We'll contact you within 24 hours."
+              : submitting
+              ? 'Sending...'
+              : 'Send Inquiry →'}
           </button>
         </div>
       </div>

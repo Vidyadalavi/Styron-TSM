@@ -7,6 +7,14 @@ import jwt from 'jsonwebtoken';
 import { connectDB } from './db.js';
 import productRoutes from './routes/products.js';
 import { authenticateToken, requireAdmin } from './middleware/auth.js';
+import quotationRoutes from './routes/quotations.js';
+import orderRoutes from './routes/orders.js';
+import customerRoutes from './routes/customers.js';
+import dashboardRoutes from './routes/dashboard.js';
+import messageRoutes from './routes/messages.js';
+import settingsRoutes from './routes/settings.js';
+import steelPriceRoutes from './routes/steelPrice.js';
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +34,13 @@ app.use(express.json({ limit: '10mb' }));
 // Product routes (GET is public, POST/PUT/DELETE require admin)
 // ----------------------------------------------------
 app.use('/api/products', productRoutes);
+app.use('/api/quotations', quotationRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/steel-price', steelPriceRoutes);
 
 // ----------------------------------------------------
 // Anthropic Client

@@ -8,11 +8,53 @@ export default function CheckoutModal({ open, onClose, items, total, clearCart }
   const [form, setForm] = useState({ name: '', phone: '', email: '', company: '', address: '', city: '', pincode: '', state: '' });
   const [payLoading, setPayLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [saveError, setSaveError] = useState('');
 
   if (!open) return null;
 
   const gst = Math.round(total * GST_RATE);
   const grandTotal = total + gst + DELIVERY;
+
+  // Persists the order to the backend once payment succeeds (or, for a demo
+  // Razorpay key, once the payment handler fires). Runs in the background —
+  // we still show the success screen even if this fails, since the customer
+  // has already been charged; we just surface a note so the admin can be
+  // told to double check.
+  const saveOrder = async (paymentId) => {
+    setSaveError('');
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: form.name,
+          company: form.company,
+          email: form.email,
+          phone: form.phone,
+          address: form.address,
+          city: form.city,
+          pincode: form.pincode,
+          state: form.state,
+          lineItems: items.map(i => ({
+            productId: i.id, title: i.title, icon: i.icon || '',
+            qty: i.qty, price: i.price, amount: i.price * i.qty,
+          })),
+          subtotal: total,
+          gst,
+          delivery: DELIVERY,
+          total: grandTotal,
+          paymentId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save order');
+      }
+    } catch (err) {
+      console.error(err);
+      setSaveError('Payment succeeded, but we could not save your order automatically. Please contact support with your payment ID.');
+    }
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -36,59 +78,18 @@ export default function CheckoutModal({ open, onClose, items, total, clearCart }
     setStep(2);
   };
 
-  const handleRazorpay = () => {
+  const handlePayNow = () => {
     setPayLoading(true);
-
-    // Razorpay options
-    const options = {
-      key: 'rzp_test_YourKeyHere', // Replace with actual Razorpay key
-      amount: grandTotal * 100, // Amount in paise
-      currency: 'INR',
-      name: 'STYRON TSM Steel',
-      description: `Order: ${items.map(i => i.title).join(', ')}`,
-      image: 'https://i.imgur.com/logo.png',
-      handler: function (response) {
-        // Payment successful
-        setPayLoading(false);
-        setStep(3);
-        clearCart();
-        console.log('Payment ID:', response.razorpay_payment_id);
-      },
-      prefill: {
-        name: form.name,
-        email: form.email,
-        contact: form.phone,
-      },
-      notes: {
-        address: `${form.address}, ${form.city} - ${form.pincode}`,
-        company: form.company,
-        items: items.map(i => `${i.title} x${i.qty}`).join(', '),
-      },
-      theme: { color: '#d4a017' },
-      modal: {
-        ondismiss: () => {
-          setPayLoading(false);
-        }
-      }
-    };
-
-    // Load Razorpay SDK if not already loaded
-    if (window.Razorpay) {
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => {
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      };
-      script.onerror = () => {
-        setPayLoading(false);
-        alert('Could not load payment gateway. Please try again.');
-      };
-      document.body.appendChild(script);
-    }
+    // Simulated payment — no real payment gateway involved. A short delay
+    // just gives the "Processing..." state something to show before moving
+    // straight to the success screen.
+    const fakePaymentId = `SIM-${Date.now()}`;
+    setTimeout(() => {
+      setPayLoading(false);
+      setStep(3);
+      saveOrder(fakePaymentId);
+      clearCart();
+    }, 800);
   };
 
   const handleReset = () => {
@@ -271,7 +272,7 @@ export default function CheckoutModal({ open, onClose, items, total, clearCart }
               {/* Payment methods */}
               <div style={{ marginBottom: '1.25rem' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '.75rem' }}>
-                  Secure Payment via Razorpay
+                  Secure Payment
                 </div>
                 <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
                   {['💳 Cards', '🏦 Net Banking', '📱 UPI', '💰 EMI', '🔒 Wallets'].map(m => (
@@ -296,11 +297,11 @@ export default function CheckoutModal({ open, onClose, items, total, clearCart }
                 <button
                   className="btn-form"
                   style={{ flex: 1, marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem' }}
-                  onClick={handleRazorpay}
+                  onClick={handlePayNow}
                   disabled={payLoading}
                 >
                   {payLoading ? (
-                    <><span style={{ animation: 'spin .8s linear infinite', display: 'inline-block' }}>⟳</span> Opening Payment...</>
+                    <><span style={{ animation: 'spin .8s linear infinite', display: 'inline-block' }}>⟳</span> Processing Payment...</>
                   ) : (
                     <>🔒 Pay ₹{grandTotal.toLocaleString('en-IN')} Securely</>
                   )}
@@ -332,6 +333,14 @@ export default function CheckoutModal({ open, onClose, items, total, clearCart }
                   • Pan-India delivery to {form.city}
                 </div>
               </div>
+              {saveError && (
+                <div style={{
+                  background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)',
+                  borderRadius: '10px', padding: '1rem', marginBottom: '1.5rem', fontSize: '.8rem', color: '#f87171'
+                }}>
+                  ⚠️ {saveError}
+                </div>
+              )}
               <button className="btn-form" onClick={handleReset}>
                 Continue Shopping
               </button>

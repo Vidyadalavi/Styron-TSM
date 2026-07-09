@@ -96,7 +96,7 @@ const CSS = `
   }
 
   .topbar {
- 
+    height:80px;
     background:rgba(255,255,255,0.97); backdrop-filter:blur(12px);
     border-bottom:1px solid var(--border);
     padding:.9rem 2rem; display:flex; align-items:center;
@@ -357,13 +357,6 @@ const ORDERS = [
   { id: "ORD-2019", customer: "Krishna Infra", product: "Custom Bent Stirrups", qty: 20, total: 196000, status: "Cancelled", date: "24 Jun 2026", city: "Kolhapur" },
 ];
 
-const QUOTES = [
-  { id: "QT-089", name: "Suresh Patel", company: "SP Infratech", product: "Custom Bent Stirrups", qty: "100 quintal", phone: "+91 98765 43210", date: "27 Jun", status: "New" },
-  { id: "QT-088", name: "Anita Sharma", company: "Sharma Builders", product: "Bulk Steel Supply", qty: "500 quintal", phone: "+91 87654 32109", date: "27 Jun", status: "Contacted" },
-  { id: "QT-087", name: "Vikram Singh", company: "VS Construction", product: "TSM Steel Stirrups", qty: "200 quintal", phone: "+91 76543 21098", date: "26 Jun", status: "Quoted" },
-  { id: "QT-086", name: "Priya Nair", company: "Nair Infra Pvt Ltd", product: "Square / Ring Stirrups", qty: "75 quintal", phone: "+91 65432 10987", date: "25 Jun", status: "Won" },
-];
-
 const MESSAGES = [
   { id: 1, name: "Rajesh Kumar", initials: "RK", subject: "Custom stirrup specifications", preview: "I need 135° hooks with 8mm diameter for columns. Can you provide samples?", time: "2h ago", read: false },
   { id: 2, name: "Meena Patel", initials: "MP", subject: "Bulk order inquiry", preview: "We are planning a 500MT order for our upcoming housing project in Pune...", time: "5h ago", read: false },
@@ -432,13 +425,17 @@ const DonutChart = ({ data }) => {
   );
 };
 
-const Sparkline = () => (
-  <div className="sparkline">
-    {MONTHLY.map((v, i) => (
-      <div key={i} className="spark-bar" style={{ height: `${(v / 120) * 36}px`, background: i === 11 ? "var(--gold)" : "rgba(212,160,23,0.25)" }} />
-    ))}
-  </div>
-);
+const Sparkline = ({ data }) => {
+  const values = data && data.length ? data : MONTHLY;
+  const max = Math.max(...values, 1);
+  return (
+    <div className="sparkline">
+      {values.map((v, i) => (
+        <div key={i} className="spark-bar" style={{ height: `${(v / max) * 36}px`, background: i === values.length - 1 ? "var(--gold)" : "rgba(212,160,23,0.25)" }} />
+      ))}
+    </div>
+  );
+};
 
 const Toggle = ({ value, onChange }) => (
   <div className={`toggle ${value ? "on" : "off"}`} onClick={() => onChange(!value)}>
@@ -450,20 +447,49 @@ const Toggle = ({ value, onChange }) => (
 
 // DASHBOARD
 function Dashboard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    setLoading(true);
+    setError('');
+    fetch('/api/dashboard/summary', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load dashboard');
+        return res.json();
+      })
+      .then(setData)
+      .catch(() => setError('Could not load dashboard data. Please refresh.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="empty"><p>Loading dashboard…</p></div>;
+  if (error) return <div className="empty"><p style={{ color: 'var(--red)' }}>{error}</p></div>;
+
+  const { stats, monthlyRevenue, weeklyBreakdown, productMix, recentOrders, activity } = data;
+  const growth = stats.revenueGrowth;
+  const growthLabel = growth === null ? "No data for last month" : `${growth >= 0 ? "↑" : "↓"} ${Math.abs(growth)}% vs last month`;
+  const monthName = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const thisMonthRevenue = monthlyRevenue[monthlyRevenue.length - 1] || 0;
+
+  const STAT_CARDS = [
+    { label: "Total Revenue", value: `₹${(stats.totalRevenue / 100000).toFixed(1)}L`, change: growthLabel, cls: "gold", icon: "💰" },
+    { label: "Active Orders", value: String(stats.activeOrders), change: "Currently in progress", cls: "blue", icon: "📦" },
+    { label: "Quote Requests", value: String(stats.newQuotes), change: "Awaiting response", cls: "green", icon: "📋" },
+    { label: "Pending Delivery", value: String(stats.pendingDelivery), change: "Not yet shipped", cls: "red", icon: "🚛" },
+  ];
+
   return (
     <>
       <div className="stats-row">
-        {[
-          { label: "Total Revenue", value: "₹28.4L", change: "↑ 18.3% vs last month", cls: "gold", icon: "💰" },
-          { label: "Active Orders", value: "14", change: "↑ 3 since yesterday", cls: "blue", icon: "📦" },
-          { label: "Quote Requests", value: "9", change: "↑ 4 new today", cls: "green", icon: "📋" },
-          { label: "Pending Delivery", value: "6", change: "↓ 2 shipped today", cls: "red", icon: "🚛" },
-        ].map((s) => (
+        {STAT_CARDS.map((s) => (
           <div key={s.label} className={`stat-card ${s.cls}`}>
             <span className="stat-icon">{s.icon}</span>
             <div className="stat-label">{s.label}</div>
             <div className="stat-value">{s.value}</div>
-            <div className={`stat-change ${s.change.startsWith("↑") ? "up" : "down"}`}>{s.change}</div>
+            <div className={`stat-change ${s.change.startsWith("↑") ? "up" : s.change.startsWith("↓") ? "down" : ""}`}>{s.change}</div>
           </div>
         ))}
       </div>
@@ -472,22 +498,19 @@ function Dashboard() {
         <div className="panel">
           <div className="panel-head">
             <h3>Monthly Revenue</h3>
-            <Sparkline />
+            <Sparkline data={monthlyRevenue} />
           </div>
           <div className="panel-body">
             <div style={{ marginBottom: "1.25rem" }}>
-              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: "2.2rem", fontWeight: 800, color: "var(--gold)" }}>₹28,40,000</div>
-              <div style={{ fontSize: ".75rem", color: "var(--silver)", marginTop: ".2rem" }}>June 2026 · 18.3% growth over May</div>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: "2.2rem", fontWeight: 800, color: "var(--gold)" }}>₹{thisMonthRevenue.toLocaleString("en-IN")}</div>
+              <div style={{ fontSize: ".75rem", color: "var(--silver)", marginTop: ".2rem" }}>{monthName} · {growth === null ? "no prior month to compare" : `${growth}% ${growth >= 0 ? "growth" : "decline"} over last month`}</div>
             </div>
             <div style={{ marginBottom: "1rem" }}>
-              {[
-                { label: "Week 1", v: 58 }, { label: "Week 2", v: 72 },
-                { label: "Week 3", v: 84 }, { label: "Week 4", v: 91 },
-              ].map(({ label, v }) => (
+              {weeklyBreakdown.map(({ label, value }) => (
                 <div key={label} className="chart-bar-row">
                   <span className="chart-bar-label">{label}</span>
-                  <div className="chart-bar-track"><div className="chart-bar-fill" style={{ width: `${v}%`, background: "linear-gradient(90deg,var(--gold),var(--gold-light))" }} /></div>
-                  <span className="chart-bar-val">{v}%</span>
+                  <div className="chart-bar-track"><div className="chart-bar-fill" style={{ width: `${value}%`, background: "linear-gradient(90deg,var(--gold),var(--gold-light))" }} /></div>
+                  <span className="chart-bar-val">{value}%</span>
                 </div>
               ))}
             </div>
@@ -497,7 +520,9 @@ function Dashboard() {
         <div className="panel">
           <div className="panel-head"><h3>Product Mix</h3><span>By revenue</span></div>
           <div className="panel-body">
-            <DonutChart data={SALES_DATA} />
+            {productMix.length > 0
+              ? <DonutChart data={productMix} />
+              : <div className="empty"><p>No order data yet</p></div>}
           </div>
         </div>
       </div>
@@ -509,7 +534,7 @@ function Dashboard() {
             <table className="data-table">
               <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead>
               <tbody>
-                {ORDERS.slice(0, 5).map((o) => (
+                {recentOrders.map((o) => (
                   <tr key={o.id}>
                     <td style={{ color: "var(--gold)", fontWeight: 600 }}>{o.id}</td>
                     <td>{o.customer}</td>
@@ -517,6 +542,9 @@ function Dashboard() {
                     <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
                   </tr>
                 ))}
+                {recentOrders.length === 0 && (
+                  <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--silver)' }}>No orders yet</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -525,15 +553,16 @@ function Dashboard() {
         <div className="panel">
           <div className="panel-head"><h3>Activity Feed</h3><span>Live</span></div>
           <div className="panel-body">
-            {ACTIVITY.map((a, i) => (
+            {activity.map((a, i) => (
               <div key={i} className="activity-item">
                 <div className={`activity-dot ${a.color}`} />
                 <div>
                   <div className="activity-text">{a.text}</div>
-                  <div className="activity-time">{a.time}</div>
+                  <div className="activity-time">{new Date(a.time).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
               </div>
             ))}
+            {activity.length === 0 && <div className="empty"><p>No recent activity</p></div>}
           </div>
         </div>
       </div>
@@ -543,13 +572,54 @@ function Dashboard() {
 
 // ORDERS
 function Orders() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
-  const statuses = ["All", "Delivered", "Processing", "Shipped", "Pending", "Cancelled"];
-  const filtered = ORDERS.filter(o =>
+  const statuses = ["All", "Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const token = () => localStorage.getItem('admin_token');
+
+  const loadOrders = () => {
+    setLoading(true);
+    setError('');
+    fetch('/api/orders', {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load orders');
+        return res.json();
+      })
+      .then(data => setOrders(data))
+      .catch(() => setError('Could not load orders. Please refresh.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadOrders(); }, []);
+
+  const updateStatus = async (orderId, status) => {
+    setOrders(os => os.map(o => o.orderId === orderId ? { ...o, status } : o));
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      loadOrders();
+    }
+  };
+
+  const filtered = orders.filter(o =>
     (filter === "All" || o.status === filter) &&
-    (o.customer.toLowerCase().includes(search.toLowerCase()) || o.id.includes(search))
+    (o.fullName.toLowerCase().includes(search.toLowerCase()) || o.orderId.toLowerCase().includes(search.toLowerCase()))
   );
+
   return (
     <>
       <div className="filter-bar">
@@ -560,37 +630,118 @@ function Orders() {
         <select className="form-select" style={{ width: "auto" }} value={filter} onChange={e => setFilter(e.target.value)}>
           {statuses.map(s => <option key={s}>{s}</option>)}
         </select>
-        <button className="btn btn-gold">+ New Order</button>
       </div>
-      <div className="panel">
-        <table className="data-table">
-          <thead>
-            <tr><th>Order ID</th><th>Customer</th><th>City</th><th>Product</th><th>Qty</th><th>Total</th><th>Date</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody>
-            {filtered.map(o => (
-              <tr key={o.id}>
-                <td style={{ color: "var(--gold)", fontWeight: 700 }}>{o.id}</td>
-                <td style={{ fontWeight: 600 }}>{o.customer}</td>
-                <td style={{ color: "var(--silver)" }}>{o.city}</td>
-                <td style={{ fontSize: ".78rem", color: "var(--silver)" }}>{o.product}</td>
-                <td>{o.qty}q</td>
-                <td style={{ fontWeight: 700 }}>₹{o.total.toLocaleString("en-IN")}</td>
-                <td style={{ color: "var(--silver)", fontSize: ".78rem" }}>{o.date}</td>
-                <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
-                <td>
-                  <div style={{ display: "flex", gap: ".4rem" }}>
-                    <button className="btn btn-ghost btn-sm">Edit</button>
-                    <button className="btn btn-outline btn-sm">Invoice</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && <div className="empty"><div className="empty-icon">📦</div><p>No orders found</p></div>}
-      </div>
+
+      {loading && <div className="empty"><p>Loading orders…</p></div>}
+      {!loading && error && <div className="empty"><p style={{ color: 'var(--red)' }}>{error}</p></div>}
+
+      {!loading && !error && (
+        <div className="panel">
+          <table className="data-table">
+            <thead>
+              <tr><th>Order ID</th><th>Customer</th><th>City</th><th>Products</th><th>Total</th><th>Date</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {filtered.map(o => (
+                <tr key={o.orderId} style={{ cursor: 'pointer' }} onClick={() => setSelectedOrder(o)}>
+                  <td style={{ color: "var(--gold)", fontWeight: 700 }}>{o.orderId}</td>
+                  <td style={{ fontWeight: 600 }}>{o.fullName}</td>
+                  <td style={{ color: "var(--silver)" }}>{o.city}</td>
+                  <td style={{ fontSize: ".78rem", color: "var(--silver)" }}>
+                    {o.lineItems.map(li => li.title).join(', ')}
+                  </td>
+                  <td style={{ fontWeight: 700 }}>₹{o.total.toLocaleString("en-IN")}</td>
+                  <td style={{ color: "var(--silver)", fontSize: ".78rem" }}>
+                    {new Date(o.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <select
+                      className="form-select"
+                      style={{ width: 'auto', padding: '.3rem .6rem', fontSize: '.75rem' }}
+                      value={o.status}
+                      onChange={e => updateStatus(o.orderId, e.target.value)}
+                    >
+                      {["Pending", "Processing", "Shipped", "Delivered", "Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", gap: ".4rem" }}>
+                      <button className="btn btn-outline btn-sm" onClick={() => setSelectedOrder(o)}>View</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && <div className="empty"><div className="empty-icon">📦</div><p>No orders found</p></div>}
+        </div>
+      )}
+
+      {selectedOrder && (
+        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+      )}
     </>
+  );
+}
+
+// ─── ORDER DETAIL MODAL ──────────────────────────────────────────────────────
+function OrderDetailModal({ order: o, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal-head">
+          <div>
+            <h3>{o.orderId}</h3>
+            <span style={{ fontSize: '.75rem', color: 'var(--silver)' }}>
+              {new Date(o.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <span className={`badge ${statusBadge(o.status)}`} style={{ marginBottom: '1rem', display: 'inline-block' }}>{o.status}</span>
+
+          <div className="settings-section" style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '.85rem' }}>Customer</h3>
+            <div style={{ fontSize: '.85rem', lineHeight: 1.8, color: 'var(--text)' }}>
+              <div><strong>{o.fullName}</strong>{o.company && ` · ${o.company}`}</div>
+              <div>✉️ {o.email}</div>
+              <div>📞 {o.phone}</div>
+              <div>📍 {o.address}, {o.city}{o.pincode && ` - ${o.pincode}`}{o.state && `, ${o.state}`}</div>
+              {o.paymentId && <div>💳 Payment ID: {o.paymentId}</div>}
+            </div>
+          </div>
+
+          <div className="settings-section" style={{ marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '.85rem' }}>Products Ordered</h3>
+            <table className="data-table">
+              <thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+              <tbody>
+                {o.lineItems.map((it, i) => (
+                  <tr key={i}>
+                    <td>{it.icon} {it.title}</td>
+                    <td>{it.qty}</td>
+                    <td>₹{it.price.toLocaleString('en-IN')}</td>
+                    <td>₹{it.amount.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: '.75rem', textAlign: 'right', fontSize: '.85rem', color: 'var(--silver)' }}>
+              Subtotal: ₹{o.subtotal.toLocaleString('en-IN')} &nbsp;·&nbsp;
+              GST: ₹{o.gst.toLocaleString('en-IN', { maximumFractionDigits: 0 })} &nbsp;·&nbsp;
+              Delivery: ₹{o.delivery.toLocaleString('en-IN')} &nbsp;·&nbsp;
+              <strong style={{ color: 'var(--gold)' }}>Total: ₹{o.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</strong>
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <a className="btn btn-ghost btn-sm" href={`tel:${o.phone}`}>📞 Call</a>
+          <a className="btn btn-ghost btn-sm" href={`https://wa.me/${o.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>
+          <button className="btn btn-gold btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -679,60 +830,35 @@ function ProductsPage() {
   return (
     <>
       {toast && <div className="toast">{toast.text}</div>}
-      <div className="grid-2">
-        <div className="panel">
-          <div className="panel-head"><h3>Product Catalogue</h3><button className="btn btn-gold btn-sm" onClick={() => setShowAdd(true)}>+ Add Product</button></div>
-          <div className="panel-body">
-            {products.map(p => (
-              <div key={p.id} className="product-row">
-                <div className="product-icon-box">
-                  {p.image ? <img src={p.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : p.icon}
-                </div>
-                <div className="product-info">
-                  <p>{p.title}</p>
-                  <span>{p.sku}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: ".3rem" }}>
-                  <span style={{ color: "var(--silver)", fontSize: ".7rem" }}>Stock</span>
-                  <input className="product-price-input" type="number" style={{ width: '70px' }} value={p.stock} onChange={e => handleField(p.id, 'stock', e.target.value)} />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: ".5rem" }}>
-                  <span style={{ color: "var(--silver)", fontSize: ".75rem" }}>₹</span>
-                  <input className="product-price-input" type="number" value={p.price} onChange={e => handleField(p.id, 'price', e.target.value)} />
-                </div>
-                <span className={`badge ${p.active ? "badge-green" : "badge-red"}`} style={{ marginLeft: ".5rem" }}>{p.active ? "Active" : "Off"}</span>
-                <button className="btn btn-ghost btn-sm" style={{ marginLeft: ".5rem" }} onClick={() => handleDelete(p.id)}>Delete</button>
+      <div className="panel">
+        <div className="panel-head"><h3>Product Catalogue</h3><button className="btn btn-gold btn-sm" onClick={() => setShowAdd(true)}>+ Add Product</button></div>
+        <div className="panel-body">
+          {products.map(p => (
+            <div key={p.id} className="product-row">
+              <div className="product-icon-box">
+                {p.image ? <img src={p.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : p.icon}
               </div>
-            ))}
-            <div style={{ marginTop: "1.25rem", display: "flex", gap: ".75rem" }}>
-              <button className="btn btn-gold" onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save Changes'}
-              </button>
-              <button className="btn btn-ghost" onClick={handleReset}>Reset</button>
+              <div className="product-info">
+                <p>{p.title}</p>
+                <span>{p.sku}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: ".3rem" }}>
+                <span style={{ color: "var(--silver)", fontSize: ".7rem" }}>Stock</span>
+                <input className="product-price-input" type="number" style={{ width: '70px' }} value={p.stock} onChange={e => handleField(p.id, 'stock', e.target.value)} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: ".5rem" }}>
+                <span style={{ color: "var(--silver)", fontSize: ".75rem" }}>₹</span>
+                <input className="product-price-input" type="number" value={p.price} onChange={e => handleField(p.id, 'price', e.target.value)} />
+              </div>
+              <span className={`badge ${p.active ? "badge-green" : "badge-red"}`} style={{ marginLeft: ".5rem" }}>{p.active ? "Active" : "Off"}</span>
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: ".5rem" }} onClick={() => handleDelete(p.id)}>Delete</button>
             </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          <div className="panel">
-            <div className="panel-head"><h3>Stock Levels</h3><span>quintal</span></div>
-            <div className="panel-body">
-              {products.map(p => (
-                <div key={p.id} className="chart-bar-row">
-                  <span className="chart-bar-label" style={{ fontSize: ".72rem" }}>{p.title.split(" ").slice(0, 2).join(" ")}</span>
-                  <div className="chart-bar-track">
-                    <div className="chart-bar-fill" style={{ width: `${(p.stock / 500) * 100}%`, background: p.stock < 100 ? "var(--red)" : "linear-gradient(90deg,var(--gold),var(--gold-light))" }} />
-                  </div>
-                  <span className="chart-bar-val">{p.stock}q</span>
-                </div>
-              ))}
-            </div>
-          </div>
-<div className="panel">
-            <div className="panel-head"><h3>Top Selling</h3><span>June 2026</span></div>
-            <div className="panel-body">
-              <DonutChart data={SALES_DATA} />
-            </div>
+          ))}
+          <div style={{ marginTop: "1.25rem", display: "flex", gap: ".75rem" }}>
+            <button className="btn btn-gold" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button className="btn btn-ghost" onClick={handleReset}>Reset</button>
           </div>
         </div>
       </div>
@@ -888,66 +1014,310 @@ function slugify(str) {
 
 // QUOTES
 function QuotesPage() {
-  const [tab, setTab] = useState("New");
-  const tabs = ["New", "Contacted", "Quoted", "Won"];
-  const filtered = QUOTES.filter(q => q.status === tab);
+  const [quotes, setQuotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [selectedQuote, setSelectedQuote] = useState(null);
+  const token = () => localStorage.getItem('admin_token');
+
+  const loadQuotes = () => {
+    setLoading(true);
+    setError('');
+    fetch('/api/quotations', {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load quote requests');
+        return res.json();
+      })
+      .then(data => setQuotes(data))
+      .catch(() => setError('Could not load quote requests. Please refresh.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadQuotes(); }, []);
+
+  const updateStatus = async (quoteNumber, status) => {
+    setQuotes(qs => qs.map(q => q.quoteNumber === quoteNumber ? { ...q, status } : q));
+    try {
+      const res = await fetch(`/api/quotations/${quoteNumber}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      loadQuotes(); // roll back to server truth if the update failed
+    }
+  };
+
+  const discard = async (quoteNumber) => {
+    if (!window.confirm('Discard this quote request? This cannot be undone.')) return;
+    setQuotes(qs => qs.filter(q => q.quoteNumber !== quoteNumber));
+    try {
+      const res = await fetch(`/api/quotations/${quoteNumber}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      loadQuotes();
+    }
+  };
+
+  const filtered = quotes.filter(q => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    const nameMatch = q.fullName?.toLowerCase().includes(term);
+    const companyMatch = q.company?.toLowerCase().includes(term);
+    const phoneMatch = q.phone?.replace(/\D/g, '').includes(term.replace(/\D/g, '')) && term.replace(/\D/g, '').length > 0;
+    return nameMatch || companyMatch || phoneMatch;
+  });
+
   return (
     <>
-      <div className="tabs">
-        {tabs.map(t => (
-          <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t} {QUOTES.filter(q => q.status === t).length > 0 && <span className={`nav-badge ${t === "New" ? "gold" : ""}`} style={{ marginLeft: ".4rem", position: "static" }}>{QUOTES.filter(q => q.status === t).length}</span>}
-          </button>
-        ))}
+      <div className="search-input-wrap" style={{ marginBottom: "1rem", maxWidth: "340px" }}>
+        <span>🔍</span>
+        <input
+          className="search-input"
+          placeholder="Search by name, company, or phone…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
       </div>
-      {filtered.length === 0 && <div className="empty"><div className="empty-icon">📋</div><p>No {tab.toLowerCase()} quotes</p></div>}
-      {filtered.map(q => (
-        <div key={q.id} className="quote-card">
-          <div className="quote-card-head">
-            <div>
-              <strong style={{ color: "var(--gold)" }}>{q.id}</strong>
-              <span style={{ marginLeft: ".75rem", fontSize: ".78rem", color: "var(--silver)" }}>{q.date}</span>
-            </div>
-            <span className={`badge ${statusBadge(q.status)}`}>{q.status}</span>
-          </div>
-          <div className="quote-card-body">
-            <div style={{ marginBottom: ".35rem" }}>
-              <strong style={{ color:"var(--text)" }}>{q.name}</strong>
-              {q.company && <span> · {q.company}</span>}
-            </div>
-            <div>Product: <span style={{ color:"var(--text)" }}>{q.product}</span> · Qty: <span style={{ color:"var(--text)" }}>{q.qty}</span></div>
-            <div style={{ marginTop: ".3rem" }}>📞 {q.phone}</div>
-          </div>
-          <div className="quote-card-footer">
-            <button className="btn btn-gold btn-sm">Send Quote</button>
-            <button className="btn btn-ghost btn-sm">📞 Call</button>
-            <button className="btn btn-ghost btn-sm">💬 WhatsApp</button>
-            <button className="btn btn-danger btn-sm" style={{ marginLeft: "auto" }}>Discard</button>
-          </div>
+
+      {loading && <div className="empty"><p>Loading quote requests…</p></div>}
+      {!loading && error && <div className="empty"><p style={{ color: 'var(--red)' }}>{error}</p></div>}
+      {!loading && !error && filtered.length === 0 && (
+        <div className="empty">
+          <div className="empty-icon">📋</div>
+          <p>{search.trim() ? `No quotes match "${search}"` : 'No quote requests yet'}</p>
         </div>
-      ))}
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
+        <div className="panel">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Quote No</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Company</th>
+                <th>GSTIN</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(q => (
+                <tr key={q.quoteNumber} style={{ cursor: 'pointer' }} onClick={() => setSelectedQuote(q)}>
+                  <td style={{ color: "var(--gold)", fontWeight: 700 }}>{q.quoteNumber}</td>
+                  <td style={{ color: "var(--silver)", fontSize: ".78rem" }}>
+                    {new Date(q.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td style={{ fontWeight: 600 }}>{q.fullName}</td>
+                  <td style={{ color: "var(--silver)" }}>{q.company || '—'}</td>
+                  <td style={{ color: "var(--silver)", fontSize: ".78rem" }}>{q.gstin || '—'}</td>
+                  <td style={{ color: "var(--silver)", fontSize: ".78rem" }}>{q.phone || '—'}</td>
+                  <td style={{ color: "var(--silver)", fontSize: ".78rem" }}>{q.email || '—'}</td>
+                  <td style={{ fontWeight: 700 }}>₹{q.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <select
+                      className="form-select"
+                      style={{ width: 'auto', padding: '.3rem .6rem', fontSize: '.75rem' }}
+                      value={q.status}
+                      onChange={e => updateStatus(q.quoteNumber, e.target.value)}
+                    >
+                      {["New", "Contacted", "Quoted", "Won"].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", gap: ".4rem" }}>
+                      <button className="btn btn-outline btn-sm" onClick={() => setSelectedQuote(q)}>View</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => discard(q.quoteNumber)}>Discard</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedQuote && (
+        <QuoteDetailModal
+          quote={selectedQuote}
+          onClose={() => setSelectedQuote(null)}
+        />
+      )}
     </>
+  );
+}
+
+// ─── QUOTE DETAIL MODAL ──────────────────────────────────────────────────────
+function QuoteDetailModal({ quote: q, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal-head">
+          <div>
+            <h3>{q.quoteNumber}</h3>
+            <span style={{ fontSize: '.75rem', color: 'var(--silver)' }}>
+              {new Date(q.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <span className={`badge ${statusBadge(q.status)}`} style={{ marginBottom: '1rem', display: 'inline-block' }}>{q.status}</span>
+
+          <div className="settings-section" style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '.85rem' }}>Customer</h3>
+            <div style={{ fontSize: '.85rem', lineHeight: 1.8, color: 'var(--text)' }}>
+              <div><strong>{q.fullName}</strong>{q.company && ` · ${q.company}`}</div>
+              {q.email && <div>✉️ {q.email}</div>}
+              {q.phone && <div>📞 {q.phone}</div>}
+              {q.gstin && <div>GSTIN: {q.gstin}</div>}
+              {(q.address || q.city) && <div>📍 {[q.address, q.city].filter(Boolean).join(', ')}</div>}
+              {q.projectType && <div>Project Type: {q.projectType}</div>}
+            </div>
+          </div>
+
+          {q.lineItems.length > 0 ? (
+            <div className="settings-section" style={{ marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '.85rem' }}>Products Requested</h3>
+              <table className="data-table">
+                <thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+                <tbody>
+                  {q.lineItems.map((it, i) => (
+                    <tr key={i}>
+                      <td>{it.title}</td>
+                      <td>{it.qty}</td>
+                      <td>₹{it.price.toLocaleString('en-IN')}</td>
+                      <td>₹{it.amount.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: '.75rem', textAlign: 'right', fontSize: '.85rem', color: 'var(--silver)' }}>
+                Subtotal: ₹{q.subtotal.toLocaleString('en-IN')} &nbsp;·&nbsp;
+                GST: ₹{q.gst.toLocaleString('en-IN', { maximumFractionDigits: 0 })} &nbsp;·&nbsp;
+                <strong style={{ color: 'var(--gold)' }}>Total: ₹{q.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</strong>
+              </div>
+            </div>
+          ) : (
+            q.message && (
+              <div className="settings-section">
+                <h3 style={{ fontSize: '.85rem' }}>Message</h3>
+                <p style={{ fontSize: '.85rem', color: 'var(--text)', lineHeight: 1.6 }}>{q.message}</p>
+              </div>
+            )
+          )}
+        </div>
+        <div className="modal-foot">
+          {q.phone && <a className="btn btn-ghost btn-sm" href={`tel:${q.phone}`}>📞 Call</a>}
+          {q.phone && <a className="btn btn-ghost btn-sm" href={`https://wa.me/${q.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
+          <button className="btn btn-gold btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 // MESSAGES
 function MessagesPage() {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
+  const token = () => localStorage.getItem('admin_token');
+
+  const loadMessages = () => {
+    setLoading(true);
+    setError('');
+    fetch('/api/messages', { headers: { Authorization: `Bearer ${token()}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load messages');
+        return res.json();
+      })
+      .then(setMessages)
+      .catch(() => setError('Could not load messages. Please refresh.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadMessages(); }, []);
+
+  const openMessage = (m) => {
+    setSelected(m);
+    setReplyText(m.reply || '');
+    if (!m.read) {
+      fetch(`/api/messages/${m._id}/read`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token()}` },
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(updated => {
+          if (!updated) return;
+          setMessages(ms => ms.map(x => x._id === updated._id ? updated : x));
+          setSelected(updated);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const sendReply = async () => {
+    if (!selected || !replyText.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/messages/${selected._id}/reply`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ reply: replyText }),
+      });
+      if (!res.ok) throw new Error('Failed to send reply');
+      const updated = await res.json();
+      setMessages(ms => ms.map(x => x._id === updated._id ? updated : x));
+      setSelected(updated);
+    } catch {
+      setError('Could not send the reply. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const initials = (name = '') => name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+  const timeAgo = (iso) => new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
   return (
     <div className="grid-2">
       <div className="panel">
         <div className="panel-head">
           <h3>Inbox</h3>
-          <span className="badge badge-blue">{MESSAGES.filter(m => !m.read).length} unread</span>
+          <span className="badge badge-blue">{messages.filter(m => !m.read).length} unread</span>
         </div>
         <div className="panel-body" style={{ padding: "0 1.5rem" }}>
-          {MESSAGES.map(m => (
-            <div key={m.id} className="msg-card" style={{ cursor: "pointer", opacity: m.read ? .7 : 1 }} onClick={() => setSelected(m)}>
-              <div className="msg-avatar">{m.initials}</div>
+          {loading && <p style={{ padding: '1rem 0', color: 'var(--silver)', fontSize: '.85rem' }}>Loading…</p>}
+          {!loading && error && <p style={{ padding: '1rem 0', color: 'var(--red)', fontSize: '.85rem' }}>{error}</p>}
+          {!loading && !error && messages.length === 0 && (
+            <div className="empty"><div className="empty-icon">✉️</div><p>No messages yet</p></div>
+          )}
+          {!loading && !error && messages.map(m => (
+            <div key={m._id} className="msg-card" style={{ cursor: "pointer", opacity: m.read ? .7 : 1 }} onClick={() => openMessage(m)}>
+              <div className="msg-avatar">{initials(m.name)}</div>
               <div className="msg-body">
                 <div className="msg-name">{m.name} {!m.read && <span className="badge badge-blue" style={{ marginLeft: ".4rem" }}>New</span>}</div>
-                <div className="msg-preview"><strong style={{ color:"var(--text)" }}>{m.subject}</strong><br />{m.preview}</div>
-                <div className="msg-meta">{m.time}</div>
+                <div className="msg-preview"><strong style={{ color: "var(--text)" }}>{m.subject || 'General Enquiry'}</strong><br />{m.body}</div>
+                <div className="msg-meta">{timeAgo(m.createdAt)}</div>
               </div>
             </div>
           ))}
@@ -958,22 +1328,31 @@ function MessagesPage() {
           <>
             <div className="panel-head">
               <div>
-                <h3>{selected.subject}</h3>
-                <span>{selected.name} · {selected.time}</span>
+                <h3>{selected.subject || 'General Enquiry'}</h3>
+                <span>{selected.name} · {timeAgo(selected.createdAt)}</span>
               </div>
               <button className="btn btn-ghost btn-sm" onClick={() => setSelected(null)}>✕</button>
             </div>
             <div className="panel-body">
               <div style={{ background: "var(--steel)", border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginBottom: "1.25rem", fontSize: ".85rem", lineHeight: "1.7", color: "var(--text)" }}>
-                {selected.preview} Lorem ipsum dolor sit amet, consectetur adipiscing elit. Regarding the order specifications for your project.
+                {selected.body}
               </div>
+              {selected.reply && (
+                <div style={{ background: "var(--gold-soft)", border: "1px solid rgba(234,88,12,0.2)", borderRadius: "8px", padding: "1rem", marginBottom: "1.25rem", fontSize: ".85rem", lineHeight: "1.7", color: "var(--text)" }}>
+                  <strong style={{ color: "var(--gold)" }}>Your reply</strong><br />{selected.reply}
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Reply</label>
-                <textarea className="form-textarea" placeholder="Type your reply…" rows={4} />
+                <textarea className="form-textarea" placeholder="Type your reply…" rows={4} value={replyText} onChange={e => setReplyText(e.target.value)} />
               </div>
               <div style={{ display: "flex", gap: ".75rem" }}>
-                <button className="btn btn-gold">Send Reply</button>
-                <button className="btn btn-ghost">💬 WhatsApp</button>
+                <button className="btn btn-gold" onClick={sendReply} disabled={sending || !replyText.trim()}>
+                  {sending ? 'Sending…' : 'Send Reply'}
+                </button>
+                {selected.phone && (
+                  <a className="btn btn-ghost" href={`https://wa.me/${selected.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>
+                )}
               </div>
             </div>
           </>
@@ -990,119 +1369,321 @@ function MessagesPage() {
 
 // CUSTOMERS
 function CustomersPage() {
-  const customers = [
-    { name: "Rajesh Constructions", city: "Pune", orders: 12, spend: "₹48.5L", type: "Enterprise", since: "2023" },
-    { name: "Agarwal Steel Works", city: "Nashik", orders: 8, spend: "₹31.2L", type: "Business", since: "2024" },
-    { name: "Shri Builders Pvt Ltd", city: "Mumbai", orders: 5, spend: "₹18.8L", type: "Business", since: "2024" },
-    { name: "Meera Infrastructure", city: "Solapur", orders: 3, spend: "₹9.1L", type: "Regular", since: "2025" },
-    { name: "Patil Constructions", city: "Aurangabad", orders: 6, spend: "₹22.4L", type: "Business", since: "2024" },
-    { name: "Krishna Infra", city: "Kolhapur", orders: 2, spend: "₹4.5L", type: "Regular", since: "2025" },
-  ];
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(null);
+  const token = () => localStorage.getItem('admin_token');
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    fetch('/api/customers', {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load customers');
+        return res.json();
+      })
+      .then(data => setCustomers(data))
+      .catch(() => setError('Could not load customers. Please refresh.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = customers.filter(c => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return c.fullName?.toLowerCase().includes(term) ||
+      c.company?.toLowerCase().includes(term) ||
+      c.city?.toLowerCase().includes(term) ||
+      c.email?.toLowerCase().includes(term);
+  });
+
   return (
     <>
       <div className="filter-bar">
         <div className="search-input-wrap">
           <span>🔍</span>
-          <input className="search-input" placeholder="Search customers…" />
+          <input
+            className="search-input"
+            placeholder="Search customers…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-        <button className="btn btn-gold">+ Add Customer</button>
       </div>
-      <div className="panel">
-        <table className="data-table">
-          <thead><tr><th>Customer</th><th>City</th><th>Type</th><th>Orders</th><th>Total Spend</th><th>Since</th><th></th></tr></thead>
-          <tbody>
-            {customers.map((c, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{c.name}</td>
-                <td style={{ color: "var(--silver)" }}>{c.city}</td>
-                <td><span className={`badge ${c.type === "Enterprise" ? "badge-gold" : c.type === "Business" ? "badge-blue" : "badge-silver"}`}>{c.type}</span></td>
-                <td>{c.orders}</td>
-                <td style={{ fontWeight: 700, color: "var(--gold)" }}>{c.spend}</td>
-                <td style={{ color: "var(--silver)" }}>{c.since}</td>
-                <td><button className="btn btn-ghost btn-sm">View</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {loading && <div className="empty"><p>Loading customers…</p></div>}
+      {!loading && error && <div className="empty"><p style={{ color: 'var(--red)' }}>{error}</p></div>}
+      {!loading && !error && filtered.length === 0 && (
+        <div className="empty">
+          <div className="empty-icon">🏗️</div>
+          <p>{search.trim() ? `No customers match "${search}"` : 'No customers yet — they appear here after their first order'}</p>
+        </div>
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
+        <div className="panel">
+          <table className="data-table">
+            <thead><tr><th>Customer</th><th>City</th><th>Type</th><th>Orders</th><th>Total Spend</th><th>Since</th><th></th></tr></thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr key={c.email} style={{ cursor: 'pointer' }} onClick={() => setSelected(c)}>
+                  <td style={{ fontWeight: 600 }}>{c.fullName}{c.company && <span style={{ color: 'var(--silver)', fontWeight: 400 }}> · {c.company}</span>}</td>
+                  <td style={{ color: "var(--silver)" }}>{c.city}</td>
+                  <td><span className={`badge ${c.type === "Enterprise" ? "badge-gold" : c.type === "Business" ? "badge-blue" : "badge-silver"}`}>{c.type}</span></td>
+                  <td>{c.orders}</td>
+                  <td style={{ fontWeight: 700, color: "var(--gold)" }}>₹{c.spend.toLocaleString('en-IN')}</td>
+                  <td style={{ color: "var(--silver)" }}>{new Date(c.since).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                  <td onClick={e => e.stopPropagation()}><button className="btn btn-ghost btn-sm" onClick={() => setSelected(c)}>View</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selected && (
+        <CustomerDetailModal customer={selected} onClose={() => setSelected(null)} />
+      )}
     </>
+  );
+}
+
+// ─── CUSTOMER DETAIL MODAL ───────────────────────────────────────────────────
+function CustomerDetailModal({ customer: c, onClose }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/customers/${encodeURIComponent(c.email)}/orders`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+    })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setOrders(data))
+      .finally(() => setLoading(false));
+  }, [c.email]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal-head">
+          <div>
+            <h3>{c.fullName}</h3>
+            <span style={{ fontSize: '.75rem', color: 'var(--silver)' }}>{c.company}</span>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div className="settings-section" style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '.85rem' }}>Contact</h3>
+            <div style={{ fontSize: '.85rem', lineHeight: 1.8, color: 'var(--text)' }}>
+              <div>✉️ {c.email}</div>
+              <div>📞 {c.phone}</div>
+              <div>📍 {c.city}</div>
+              <div>Customer since {new Date(c.since).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 style={{ fontSize: '.85rem' }}>Order History ({orders.length})</h3>
+            {loading ? (
+              <p style={{ fontSize: '.85rem', color: 'var(--silver)' }}>Loading…</p>
+            ) : (
+              <table className="data-table">
+                <thead><tr><th>Order ID</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+                <tbody>
+                  {orders.map(o => (
+                    <tr key={o.orderId}>
+                      <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{o.orderId}</td>
+                      <td style={{ color: 'var(--silver)', fontSize: '.78rem' }}>
+                        {new Date(o.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>₹{o.total.toLocaleString('en-IN')}</td>
+                      <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+        <div className="modal-foot">
+          <a className="btn btn-ghost btn-sm" href={`tel:${c.phone}`}>📞 Call</a>
+          <a className="btn btn-ghost btn-sm" href={`https://wa.me/${c.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>
+          <button className="btn btn-gold btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 // SETTINGS
 function SettingsPage() {
-  const [toggles, setToggles] = useState({
-    whatsapp: true, emailNotif: true, aiChat: true, razorpay: false,
-    autoReply: false, stockAlerts: true, orderNotif: true, sms: false,
-  });
+  const [company, setCompany] = useState({ companyName: '', gstNumber: '', address: '', phone: '', email: '' });
+  const [loadingCompany, setLoadingCompany] = useState(true);
+  const [companyError, setCompanyError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(false);
-  const tog = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
-  const save = () => { setToast(true); setTimeout(() => setToast(false), 2500); };
+  const token = () => localStorage.getItem('admin_token');
+
+  const [steelPrice, setSteelPrice] = useState({ price: '', unit: '', changePercent: '' });
+  const [loadingPrice, setLoadingPrice] = useState(true);
+  const [priceError, setPriceError] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [priceToast, setPriceToast] = useState(false);
+
+  useEffect(() => {
+    setLoadingPrice(true);
+    setPriceError('');
+    fetch('/api/steel-price')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load steel price');
+        return res.json();
+      })
+      .then(data => setSteelPrice({
+        price: data.price ?? '',
+        unit: data.unit || 'per MT',
+        changePercent: data.changePercent ?? 0,
+      }))
+      .catch(() => setPriceError('Could not load current steel price.'))
+      .finally(() => setLoadingPrice(false));
+  }, []);
+
+  const updatePriceField = (key) => (e) => setSteelPrice(p => ({ ...p, [key]: e.target.value }));
+
+  const savePrice = async () => {
+    if (steelPrice.price === '' || isNaN(steelPrice.price)) {
+      setPriceError('Enter a valid price.');
+      return;
+    }
+    setPriceError('');
+    setSavingPrice(true);
+    try {
+      const res = await fetch('/api/steel-price', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({
+          price: Number(steelPrice.price),
+          unit: steelPrice.unit,
+          changePercent: Number(steelPrice.changePercent) || 0,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      setPriceToast(true);
+      setTimeout(() => setPriceToast(false), 2500);
+    } catch {
+      setPriceError('Could not save steel price. Please try again.');
+    } finally {
+      setSavingPrice(false);
+    }
+  };
+
+  useEffect(() => {
+    setLoadingCompany(true);
+    setCompanyError('');
+    fetch('/api/settings/company', { headers: { Authorization: `Bearer ${token()}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load company settings');
+        return res.json();
+      })
+      .then(data => setCompany({
+        companyName: data.companyName || '',
+        gstNumber: data.gstNumber || '',
+        address: data.address || '',
+        phone: data.phone || '',
+        email: data.email || '',
+      }))
+      .catch(() => setCompanyError('Could not load company info. Please refresh.'))
+      .finally(() => setLoadingCompany(false));
+  }, []);
+
+  const updateField = (key) => (e) => setCompany(c => ({ ...c, [key]: e.target.value }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/settings/company', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(company),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      const updated = await res.json();
+      setCompany({
+        companyName: updated.companyName || '',
+        gstNumber: updated.gstNumber || '',
+        address: updated.address || '',
+        phone: updated.phone || '',
+        email: updated.email || '',
+      });
+      setToast(true);
+      setTimeout(() => setToast(false), 2500);
+    } catch {
+      setCompanyError('Could not save company info. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
       {toast && <div className="toast">✅ Settings saved!</div>}
-      <div className="grid-2">
-        <div>
-          <div className="panel" style={{ marginBottom: "1.5rem" }}>
-            <div className="panel-body">
-              <div className="settings-section">
-                <h3>Company Info</h3>
+      {priceToast && <div className="toast">✅ Steel price updated on site!</div>}
+      <div className="panel" style={{ maxWidth: '640px' }}>
+        <div className="panel-body">
+          <div className="settings-section">
+            <h3>Company Info</h3>
+            {loadingCompany && <p style={{ fontSize: '.85rem', color: 'var(--silver)' }}>Loading…</p>}
+            {!loadingCompany && companyError && <p style={{ fontSize: '.85rem', color: 'var(--red)' }}>{companyError}</p>}
+            {!loadingCompany && (
+              <>
                 <div className="form-row">
-                  <div className="form-group"><label className="form-label">Company Name</label><input className="form-input" defaultValue="STYRON TSM Steel" /></div>
-                  <div className="form-group"><label className="form-label">GST Number</label><input className="form-input" defaultValue="27XXXXX0000X1ZX" /></div>
+                  <div className="form-group"><label className="form-label">Company Name</label><input className="form-input" value={company.companyName} onChange={updateField('companyName')} /></div>
+                  <div className="form-group"><label className="form-label">GST Number</label><input className="form-input" value={company.gstNumber} onChange={updateField('gstNumber')} /></div>
                 </div>
-                <div className="form-group"><label className="form-label">Address</label><input className="form-input" defaultValue="Pune, Maharashtra, India" /></div>
+                <div className="form-group"><label className="form-label">Address</label><input className="form-input" value={company.address} onChange={updateField('address')} /></div>
                 <div className="form-row">
-                  <div className="form-group"><label className="form-label">Phone</label><input className="form-input" defaultValue="+91 98XXX XXXXX" /></div>
-                  <div className="form-group"><label className="form-label">Email</label><input className="form-input" defaultValue="info@styrontsm.com" /></div>
+                  <div className="form-group"><label className="form-label">Phone</label><input className="form-input" value={company.phone} onChange={updateField('phone')} /></div>
+                  <div className="form-group"><label className="form-label">Email</label><input className="form-input" value={company.email} onChange={updateField('email')} /></div>
                 </div>
-              </div>
-              <div className="settings-section">
-                <h3>Pricing</h3>
-                <div className="form-row">
-                  <div className="form-group"><label className="form-label">GST Rate (%)</label><input className="form-input" type="number" defaultValue="18" /></div>
-                  <div className="form-group"><label className="form-label">Delivery Charge (₹)</label><input className="form-input" type="number" defaultValue="1500" /></div>
-                </div>
-              </div>
-              <button className="btn btn-gold" onClick={save}>Save Changes</button>
+              </>
+            )}
+          </div>
+          <div className="settings-section">
+            <h3>Pricing</h3>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">GST Rate (%)</label><input className="form-input" type="number" defaultValue="18" /></div>
+              <div className="form-group"><label className="form-label">Delivery Charge (₹)</label><input className="form-input" type="number" defaultValue="1500" /></div>
             </div>
           </div>
+          <button className="btn btn-gold" onClick={save} disabled={saving || loadingCompany}>{saving ? 'Saving…' : 'Save Changes'}</button>
         </div>
+      </div>
 
-        <div>
-          <div className="panel" style={{ marginBottom: "1.5rem" }}>
-            <div className="panel-head"><h3>Integrations & Features</h3></div>
-            <div className="panel-body">
-              {[
-                { key: "whatsapp", label: "WhatsApp Button", desc: "Floating WhatsApp chat widget on site" },
-                { key: "aiChat", label: "AI Chat Assistant", desc: "Claude-powered customer support bot" },
-                { key: "razorpay", label: "Razorpay Payments", desc: "Accept online payments at checkout" },
-                { key: "autoReply", label: "Auto Reply (Quote)", desc: "Auto-send acknowledgement on new quotes" },
-              ].map(({ key, label, desc }) => (
-                <div key={key} className="toggle-row">
-                  <div className="toggle-info"><p>{label}</p><span>{desc}</span></div>
-                  <Toggle value={toggles[key]} onChange={() => tog(key)} />
+      <div className="panel" style={{ maxWidth: '640px', marginTop: '1.5rem' }}>
+        <div className="panel-body">
+          <div className="settings-section" style={{ marginBottom: 0 }}>
+            <h3>Live Steel Price</h3>
+            <p style={{ fontSize: '.78rem', color: 'var(--silver)', marginTop: '-.5rem', marginBottom: '1rem' }}>
+              Shown in the banner at the top of every page on your site.
+            </p>
+            {loadingPrice && <p style={{ fontSize: '.85rem', color: 'var(--silver)' }}>Loading…</p>}
+            {!loadingPrice && priceError && <p style={{ fontSize: '.85rem', color: 'var(--red)' }}>{priceError}</p>}
+            {!loadingPrice && (
+              <>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Price (₹)</label><input className="form-input" type="number" min="0" value={steelPrice.price} onChange={updatePriceField('price')} /></div>
+                  <div className="form-group"><label className="form-label">Unit</label><input className="form-input" placeholder="e.g. per MT, per quintal" value={steelPrice.unit} onChange={updatePriceField('unit')} /></div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h3>Notifications</h3></div>
-            <div className="panel-body">
-              {[
-                { key: "emailNotif", label: "Email Notifications", desc: "Orders, quotes, messages" },
-                { key: "sms", label: "SMS Alerts", desc: "Critical order updates via SMS" },
-                { key: "stockAlerts", label: "Stock Alerts", desc: "Alert when stock falls below threshold" },
-                { key: "orderNotif", label: "Order Updates", desc: "Status change notifications" },
-              ].map(({ key, label, desc }) => (
-                <div key={key} className="toggle-row">
-                  <div className="toggle-info"><p>{label}</p><span>{desc}</span></div>
-                  <Toggle value={toggles[key]} onChange={() => tog(key)} />
+                <div className="form-group">
+                  <label className="form-label">Change % (optional — shows ▲ green if positive, ▼ red if negative)</label>
+                  <input className="form-input" type="number" step="0.1" value={steelPrice.changePercent} onChange={updatePriceField('changePercent')} />
                 </div>
-              ))}
-            </div>
+                <button className="btn btn-gold" onClick={savePrice} disabled={savingPrice}>{savingPrice ? 'Updating…' : 'Update Price'}</button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1146,7 +1727,22 @@ const PAGE_TITLES = {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function AdminPanel() {
   const [page, setPage] = useState("dashboard");
+  const [newQuoteCount, setNewQuoteCount] = useState(null);
+  const [unreadMsgCount, setUnreadMsgCount] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    fetch('/api/quotations', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setNewQuoteCount(data.filter(q => q.status === 'New').length))
+      .catch(() => {});
+    fetch('/api/messages', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setUnreadMsgCount(data.filter(m => !m.read).length))
+      .catch(() => {});
+  }, [page]); // re-check whenever the admin navigates, so it stays roughly fresh
 
   const handleLogout = () => {
     sessionStorage.removeItem('admin_authed');
@@ -1187,7 +1783,11 @@ export default function AdminPanel() {
                 <div key={id} className={`nav-item ${page === id ? "active" : ""}`} onClick={() => setPage(id)}>
                   <span className="icon">{icon}</span>
                   {label}
-                  {badge && <span className={`nav-badge ${badgeColor || ""}`}>{badge}</span>}
+                  {id === "quotes"
+                    ? (newQuoteCount > 0 && <span className="nav-badge gold">{newQuoteCount}</span>)
+                    : id === "messages"
+                    ? (unreadMsgCount > 0 && <span className="nav-badge">{unreadMsgCount}</span>)
+                    : (badge && <span className={`nav-badge ${badgeColor || ""}`}>{badge}</span>)}
                 </div>
               ))}
             </div>
