@@ -91,17 +91,15 @@ app.post('/api/chat', async (req, res) => {
       text: response.content?.[0]?.text || 'No response'
     });
 
- } catch (err) {
-  console.error("OTP Error:", err);
+} catch (err) {
+  console.error(err);
 
-  return res.status(500).json({
-    success: false,
-    message: err.message,
-    code: err.code,
-    response: err.response,
+  res.status(500).json({
+    error: "AI service error"
   });
- }
+}
 
+});
 // ----------------------------------------------------
 // Health Check
 // ----------------------------------------------------
@@ -209,15 +207,16 @@ app.post('/api/auth/send-otp', async (req, res) => {
 
   } catch (err) {
 
-    console.error(err);
+  console.error("Brevo Error:", err);
 
-    res.status(500).json({
-      error: 'Unable to send email'
-    });
+  return res.status(500).json({
+    success: false,
+    message: err.message,
+    code: err.code,
+    response: err.response,
+  });
 
-  }
-
-});
+}
 
 // ----------------------------------------------------
 // Verify OTP
