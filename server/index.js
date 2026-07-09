@@ -120,32 +120,30 @@ const otpStore = new Map();
 // ----------------------------------------------------
 // Nodemailer
 // ----------------------------------------------------
+// ----------------------------------------------------
+// Nodemailer (Brevo)
+// ----------------------------------------------------
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: "smtp-relay.brevo.com",
   port: 587,
   secure: false,
-  requireTLS: true,
   auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
+    user: process.env.BREVO_USER,
+    pass: process.env.BREVO_SMTP_KEY,
   },
 });
 
-console.log("GMAIL_USER:", process.env.GMAIL_USER);
-console.log("APP PASSWORD EXISTS:", !!process.env.GMAIL_APP_PASSWORD);
+console.log("BREVO_USER:", process.env.BREVO_USER);
+console.log("BREVO KEY EXISTS:", !!process.env.BREVO_SMTP_KEY);
 console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
-// Verify Gmail
 transporter.verify((error) => {
-
   if (error) {
-    console.error('❌ Gmail Error:', error);
+    console.error("❌ Brevo Error:", error);
   } else {
-    console.log('✅ Gmail is ready.');
+    console.log("✅ Brevo SMTP is ready.");
   }
-
 });
-
 // ----------------------------------------------------
 // Send OTP
 // ----------------------------------------------------
@@ -184,7 +182,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
 
     await transporter.sendMail({
 
-      from: `"Styron TSM" <${process.env.GMAIL_USER}>`,
+     from: '"Styron TSM" <vidyadalavi4475@gmail.com>',
 
       to: normalizedEmail,
 
