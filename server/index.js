@@ -205,19 +205,20 @@ app.post('/api/auth/send-otp', async (req, res) => {
       message: 'OTP Sent'
     });
 
-  } catch (err) {
+  }    catch (err) {
 
-  console.error("Brevo Error:", err);
+    console.error("Brevo Error:", err);
 
-  return res.status(500).json({
-    success: false,
-    message: err.message,
-    code: err.code,
-    response: err.response,
-  });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+      code: err.code,
+      response: err.response,
+    });
 
-}
+  };
 
+});// <-- THIS LINE IS MISSING
 // ----------------------------------------------------
 // Verify OTP
 // ----------------------------------------------------
