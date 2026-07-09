@@ -91,17 +91,16 @@ app.post('/api/chat', async (req, res) => {
       text: response.content?.[0]?.text || 'No response'
     });
 
-  } catch (err) {
+ } catch (err) {
+  console.error("OTP Error:", err);
 
-    console.error(err);
-
-    res.status(500).json({
-      error: 'AI service error'
-    });
-
-  }
-
-});
+  return res.status(500).json({
+    success: false,
+    message: err.message,
+    code: err.code,
+    response: err.response,
+  });
+ }
 
 // ----------------------------------------------------
 // Health Check
