@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const lineItemSchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+  productId: { type: String },
   name: { type: String },
   slug: { type: String },
   price: { type: Number },
