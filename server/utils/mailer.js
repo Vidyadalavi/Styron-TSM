@@ -61,18 +61,29 @@ export async function sendQuotationEmail(quotation) {
 // ----------------------------------------------------
 // Order confirmation email, sent right after checkout.
 // Used by POST /api/orders
+//
+// NOTE: order.lineItems fields are { productId, price, quantity } — NOT
+// { title, qty, amount }. Product name isn't stored on the order itself,
+// so we display productId (slug) as a readable fallback and compute the
+// line amount as price * quantity.
 // ----------------------------------------------------
 export async function sendOrderConfirmationEmail(order) {
   if (!order.email) return; // nothing to send without an address
 
-  const rowsHtml = order.lineItems.map(it => `
+  const rowsHtml = order.lineItems.map(it => {
+    const qty = it.quantity ?? 1;
+    const price = it.price ?? 0;
+    const amount = price * qty;
+    const label = it.name || it.productId || 'Item';
+    return `
     <tr>
-      <td style="padding:8px;border:1px solid #ddd">${it.title}</td>
-      <td style="padding:8px;border:1px solid #ddd">${it.qty}</td>
-      <td style="padding:8px;border:1px solid #ddd">₹${it.price.toLocaleString('en-IN')}</td>
-      <td style="padding:8px;border:1px solid #ddd">₹${it.amount.toLocaleString('en-IN')}</td>
+      <td style="padding:8px;border:1px solid #ddd">${label}</td>
+      <td style="padding:8px;border:1px solid #ddd">${qty}</td>
+      <td style="padding:8px;border:1px solid #ddd">₹${price.toLocaleString('en-IN')}</td>
+      <td style="padding:8px;border:1px solid #ddd">₹${amount.toLocaleString('en-IN')}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   const html = `
     <div style="font-family:Arial;padding:24px;max-width:600px;margin:0 auto">
