@@ -59,6 +59,59 @@ export async function sendQuotationEmail(quotation) {
 }
 
 // ----------------------------------------------------
+// Order confirmation email, sent right after checkout.
+// Used by POST /api/orders
+// ----------------------------------------------------
+export async function sendOrderConfirmationEmail(order) {
+  if (!order.email) return; // nothing to send without an address
+
+  const rowsHtml = order.lineItems.map(it => `
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd">${it.title}</td>
+      <td style="padding:8px;border:1px solid #ddd">${it.qty}</td>
+      <td style="padding:8px;border:1px solid #ddd">₹${it.price.toLocaleString('en-IN')}</td>
+      <td style="padding:8px;border:1px solid #ddd">₹${it.amount.toLocaleString('en-IN')}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <div style="font-family:Arial;padding:24px;max-width:600px;margin:0 auto">
+      <h2>Styron™ TSM</h2>
+      <p>Hi ${order.fullName},</p>
+      <p>Thanks for your order! Here's your confirmation:</p>
+      <p><strong>Order ID:</strong> ${order.orderId}</p>
+      ${order.lineItems.length > 0 ? `
+        <table style="border-collapse:collapse;width:100%;margin:16px 0">
+          <thead>
+            <tr>
+              <th style="padding:8px;border:1px solid #ddd;text-align:left">Product</th>
+              <th style="padding:8px;border:1px solid #ddd;text-align:left">Qty</th>
+              <th style="padding:8px;border:1px solid #ddd;text-align:left">Rate</th>
+              <th style="padding:8px;border:1px solid #ddd;text-align:left">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <p><strong>Subtotal:</strong> ₹${order.subtotal.toLocaleString('en-IN')}<br/>
+        <strong>GST:</strong> ₹${order.gst.toLocaleString('en-IN')}<br/>
+        <strong>Delivery:</strong> ₹${order.delivery.toLocaleString('en-IN')}<br/>
+        <strong>Total:</strong> ₹${order.total.toLocaleString('en-IN')}</p>
+      ` : ''}
+      <p><strong>Shipping to:</strong><br/>
+      ${order.address}, ${order.city}${order.state ? `, ${order.state}` : ''}${order.pincode ? ` - ${order.pincode}` : ''}</p>
+      <p>We'll notify you again once your order ships.</p>
+      <p>— Styron TSM, Pune, Maharashtra</p>
+    </div>
+  `;
+
+  await sendBrevoEmail({
+    to: order.email,
+    subject: `Your Styron TSM Order ${order.orderId} is confirmed`,
+    html,
+  });
+}
+
+// ----------------------------------------------------
 // Sends the admin's reply to a contact-form message back to the customer.
 // Used by PUT /api/messages/:id/reply
 // ----------------------------------------------------
