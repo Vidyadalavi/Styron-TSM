@@ -1,23 +1,15 @@
-import nodemailer from 'nodemailer';
+import { sendBrevoEmail } from './brevoMailer.js';
 
-export const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  requireTLS: true,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
-// Verify once at startup so config problems show up immediately in the logs.
-transporter.verify((error) => {
-  if (error) {
-    console.error('❌ Gmail Error:', error);
-  } else {
-    console.log('✅ Gmail is ready.');
-  }
-});
+// ----------------------------------------------------
+// Quotation + reply emails, sent via Brevo's HTTP API.
+//
+// Previously these went through Gmail SMTP (nodemailer, port 587), which is
+// blocked/throttled on Render (and most PaaS hosts) — the same issue the
+// OTP emails hit before being switched to Brevo. Routing these through
+// sendBrevoEmail (HTTPS) fixes that, and keeps all outbound mail on one
+// provider. Only BREVO_API_KEY is required now — GMAIL_USER /
+// GMAIL_APP_PASSWORD are no longer needed.
+// ----------------------------------------------------
 
 export async function sendQuotationEmail(quotation) {
   if (!quotation.email) return; // nothing to send if only a phone was given
@@ -59,8 +51,7 @@ export async function sendQuotationEmail(quotation) {
     </div>
   `;
 
-  await transporter.sendMail({
-    from: `"Styron TSM" <${process.env.GMAIL_USER}>`,
+  await sendBrevoEmail({
     to: quotation.email,
     subject: `Your Styron TSM Quotation ${quotation.quoteNumber}`,
     html,
@@ -87,8 +78,7 @@ export async function sendMessageReplyEmail(message) {
     </div>
   `;
 
-  await transporter.sendMail({
-    from: `"Styron TSM" <${process.env.GMAIL_USER}>`,
+  await sendBrevoEmail({
     to: message.email,
     subject: `Re: ${message.subject}`,
     html,
