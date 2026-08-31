@@ -61,11 +61,6 @@ export async function sendQuotationEmail(quotation) {
 // ----------------------------------------------------
 // Order confirmation email, sent right after checkout.
 // Used by POST /api/orders
-//
-// NOTE: order.lineItems fields are { productId, price, quantity } — NOT
-// { title, qty, amount }. Product name isn't stored on the order itself,
-// so we display productId (slug) as a readable fallback and compute the
-// line amount as price * quantity.
 // ----------------------------------------------------
 export async function sendOrderConfirmationEmail(order) {
   if (!order.email) return; // nothing to send without an address

@@ -1,6 +1,7 @@
 import express from 'express';
 import Order from '../models/Order.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
+import { sendOrderConfirmationEmail } from '../utils/mailer.js';
 
 const router = express.Router();
 
@@ -30,6 +31,12 @@ router.post('/', async (req, res) => {
     const order = await Order.create({
       orderId, fullName, company, email, phone, address, city, pincode, state,
       lineItems, subtotal, gst, delivery, total, paymentId,
+    });
+
+    // Fire the confirmation email but don't let a mail failure fail the request —
+    // the order is already saved, so the customer's order isn't lost either way.
+    sendOrderConfirmationEmail(order).catch(err => {
+      console.error('Failed to send order confirmation email:', err);
     });
 
     res.status(201).json(order);
