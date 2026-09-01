@@ -65,11 +65,11 @@ export async function sendQuotationEmail(quotation) {
 export async function sendOrderConfirmationEmail(order) {
   if (!order.email) return; // nothing to send without an address
 
-  const rowsHtml = order.lineItems.map(it => {
-    const qty = it.quantity ?? 1;
-    const price = it.price ?? 0;
-    const amount = price * qty;
-    const label = it.name || it.productId || 'Item';
+const rowsHtml = order.lineItems.map(it => {
+  const qty = it.qty ?? 1;
+  const price = it.price ?? 0;
+  const amount = it.amount ?? price * qty;
+  const label = it.title || it.productId || 'Item';
     return `
     <tr>
       <td style="padding:8px;border:1px solid #ddd">${label}</td>

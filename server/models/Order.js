@@ -2,10 +2,11 @@ import mongoose from 'mongoose';
 
 const lineItemSchema = new mongoose.Schema({
   productId: { type: String },
-  name: { type: String },
-  slug: { type: String },
+  title: { type: String },
+  icon: { type: String, default: '' },
   price: { type: Number },
-  quantity: { type: Number, default: 1 },
+  qty: { type: Number, default: 1 },
+  amount: { type: Number },
 }, { _id: false });
 
 const orderSchema = new mongoose.Schema({
@@ -24,11 +25,11 @@ const orderSchema = new mongoose.Schema({
   delivery: { type: Number, default: 0 },
   total: { type: Number, required: true },
   paymentId: { type: String, default: '' },
-  status: {
-    type: String,
-    enum: ['pending', 'confirmed', 'dispatched', 'delivered', 'cancelled'],
-    default: 'pending',
-  },
+ status: {
+  type: String,
+  enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
+  default: 'Pending',
+},
 }, { timestamps: true });
 
 export default mongoose.model('Order', orderSchema);
